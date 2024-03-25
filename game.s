@@ -19,7 +19,7 @@
   .section .text
 
 Main:
-  PUSH  {R4-R5,LR}
+  PUSH  {R4-R6,LR}
 
 
   @
@@ -38,8 +38,10 @@ Main:
   @   (by BIClearing then ORRing)
   LDR     R4, =GPIOE_MODER
   LDR     R5, [R4]                    @ Read ...
-  BIC     R5, #(0b11<<(LD3_PIN*2))    @ Modify ...
-  ORR     R5, #(0b01<<(LD3_PIN*2))    @ write 01 to bits 
+  LDR     R6, =0xFFFF0000
+  BIC     R5, R6
+  LDR     R6, =0x55550000
+  ORR     R5, R6
   STR     R5, [R4]                    @ Write 
 
   @ Initialise the first countdown
@@ -82,6 +84,11 @@ Main:
   MOV   R5, #0                        @
   STR   R5, [R4]                      @
 
+  @ Initialise LED 
+  LDR   R4, =LED_cycle
+  LDR   R5, =0x100
+  STR   R5, [R4]
+
   @ Configure USER pushbutton (GPIO Port A Pin 0 on STM32F3 Discovery
   @   kit) to use the EXTI0 external interrupt signal
   @ Determined by bits 3..0 of the External Interrrupt Control
@@ -110,24 +117,23 @@ Main:
 
   @ Nothing else to do in Main
   @ Idle loop forever (welcome to interrupts!!)
+
+ 
 Idle_Loop:
-
-
-
   B     Idle_Loop
   
 End_Main:
-  POP   {R4-R5,PC}
+  POP   {R4-R6,PC}
 
 
 
 @
-@ SysTick interrupt handler (blink LED LD3)
+@ SysTick interrupt handler (blink LEDs)
 @
   .type  SysTick_Handler, %function
 SysTick_Handler:
 
-  PUSH  {R4, R5, LR}
+  PUSH  {R4-R7, LR}
 
   LDR   R4, =blink_countdown        @ if (countdown != 0) {
   LDR   R5, [R4]                    @
@@ -141,9 +147,23 @@ SysTick_Handler:
 
 .LelseFire:                         @ else {
 
-  LDR     R4, =GPIOE_ODR            @   Invert LD3
+  LDR     R4, =GPIOE_ODR            @   Invert LD
   LDR     R5, [R4]                  @
-  EOR     R5, #(0b1<<(LD3_PIN))     @   GPIOE_ODR = GPIOE_ODR ^ (1<<LD3_PIN);
+
+  @LDR      R6, =0x100              @   Mask to blink all LDEs
+  @EOR     R5, #(0b1<<(LD4_PIN))    @   GPIOE_ODR = GPIOE_ODR ^ (1<<LD4_PIN);
+  @EOR     R5, #(0b1<<(LD3_PIN))
+  LDR     R6, =LED_cycle
+  LDR     R7, [R6]
+  LSL     R7, #1                    @    MASK to Turns off previous, switches on next
+  CMP     R7, #0x10000              @    if Shifted out of ranged
+  BLo     .LContinueLEDCycle
+  LDR     R7, =0x100                 @    reset to original
+
+.LContinueLEDCycle:
+  STR     R7, [R6]
+  BIC     R5, #0xFF00
+  EOR     R5, R7                    @    Applies bit mask
   STR     R5, [R4]                  @ 
 
   LDR     R4, =blink_countdown      @   countdown = BLINK_PERIOD;
@@ -157,7 +177,7 @@ SysTick_Handler:
   STR     R5, [R4]                  @
 
   @ Return from interrupt handler
-  POP  {R4, R5, PC}
+  POP  {R4-R7, PC}
 
 
 
@@ -190,5 +210,8 @@ button_count:
 
 blink_countdown:
   .space  4
+
+LED_cycle:
+  .space 4
 
   .end
