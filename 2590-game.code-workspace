@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"cortex-debug.armToolchainPath": "${config:tcd-csu1102x-helper.armToolchainPath}",
+		"cortex-debug.openocdPath": "${config:tcd-csu1102x-helper.openocdPath}",
+		"cortex-debug.gdbPath": "${config:tcd-csu1102x-helper.gdbPath}"	
+	},
+	"extensions": {
+		"recommendations": [
+		  "dan-c-underwood.arm",
+		  "marus25.cortex-debug",
+		  "marus25.cortex-debug-dp-stm32f1",
+		  "ms-vscode-remote.vscode-remote-extensionpack",
+		  "mcu-debug.debug-tracker-vscode",
+		  "mcu-debug.memory-view"
+		]
+	}    
+}

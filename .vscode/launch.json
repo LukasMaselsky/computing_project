@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Flash and Launch (OpenOCD)",
+            "cwd": "${workspaceFolder}",
+            "executable": "./build/firmware.elf",
+            "servertype":"openocd",
+            "interface": "swd",
+            "device": "STM32F303xC",
+            "configFiles": ["support/custom.cfg"],
+            "serverpath": "${config:tcd-csu1102x-helper.openocdPath}",
+            "svdFile": "./support/STM32F303.svd",
+            "postStartSessionCommands": ["tbreak Main", "continue"],
+            "showDevDebugOutput": "both",
+            "overrideLaunchCommands": [
+                "interpreter-exec console \"monitor reset halt\"",
+            ],
+            "windows":{
+                "preLaunchTask": "windowsKillOpenOcd",
+                "postDebugTask": "windowsKillOpenOcd"
+            }
+        }
+    ]
+}
