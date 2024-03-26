@@ -15,7 +15,7 @@
   .include "./src/definitions.s"
 
   .equ    BLINK_PERIOD, 250
-  .equ    MATCH_LED, LD4_PIN
+  .equ    MATCH_LED, LD3_PIN
 
   .section .text
 
