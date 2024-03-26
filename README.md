@@ -1,7 +1,5 @@
 # computing_project
 
-Only put the 2 .s files in this repo
-
 Arcade style game, LEDS blink in circle pattern and user has to hit the button when the right LED (e.g. LED3) is on
 
 Subroutines:
