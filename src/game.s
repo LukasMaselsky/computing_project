@@ -15,6 +15,7 @@
   .include "./src/definitions.s"
 
   .equ    BLINK_PERIOD, 250
+  .equ    MATCH_LED, LD4_PIN
 
   .section .text
 
@@ -33,14 +34,14 @@ Main:
   ORR     R5, R5, #(0b1 << (RCC_AHBENR_GPIOEEN_BIT))
   STR     R5, [R4]
 
-  @ Configure LD3 for output
+  @ Configure all LEDS for output byt setting all bits
   @   by setting bits 27:26 of GPIOE_MODER to 01 (GPIO Port E Mode Register)
   @   (by BIClearing then ORRing)
   LDR     R4, =GPIOE_MODER
   LDR     R5, [R4]                    @ Read ...
   LDR     R6, =0xFFFF0000
   BIC     R5, R6
-  LDR     R6, =0x55550000
+  LDR     R6, =0x55550000             @ initialise bits to 010101....
   ORR     R5, R6
   STR     R5, [R4]                    @ Write 
 
@@ -86,7 +87,7 @@ Main:
 
   @ Initialise LED 
   LDR   R4, =LED_cycle
-  LDR   R5, =0x100
+  LDR   R5, =0x100 @ first LED at 9th bit
   STR   R5, [R4]
 
   @ Configure USER pushbutton (GPIO Port A Pin 0 on STM32F3 Discovery
@@ -162,9 +163,9 @@ SysTick_Handler:
 
 .LContinueLEDCycle:
   STR     R7, [R6]
-  BIC     R5, #0xFF00
-  EOR     R5, R7                    @    Applies bit mask
-  STR     R5, [R4]                  @ 
+  BIC     R5, #0xFF00               @    clear all LED bits
+  EOR     R5, R7                    @    Applies bit mask i.e. sets the bit from memory for next LED
+  STR     R5, [R4]                  @    apply new state to LEDs to turn each one on/off
 
   LDR     R4, =blink_countdown      @   countdown = BLINK_PERIOD;
   LDR     R5, =BLINK_PERIOD         @
@@ -188,19 +189,33 @@ SysTick_Handler:
   .type  EXTI0_IRQHandler, %function
 EXTI0_IRQHandler:
 
-  PUSH  {R4,R5,LR}
+  PUSH  {R4-R6,LR}
 
-  LDR   R4, =button_count           @ count = count + 1
-  LDR   R5, [R4]                    @
-  ADD   R5, R5, #1                  @
-  STR   R5, [R4]                    @
+ 
+  LDR   R4, =LED_cycle              @ count = count + 1
+  LDR   R5, [R4]                    @ LED that is currently on
+  MOV   R6, #(0b1<<(MATCH_LED))     @ check if that LED is the same as the match point
+  CMP   R5, R6
+  BEQ .LplayerWon
+  B .LplayerLost
+
+.LplayerWon:
+  MOV R5, #2
+  B .LendPlayerDecision
+
+.LplayerLost: 
+  MOV R5, #1
+
+.LendPlayerDecision:
+  LDR R4, =result
+  STR R5, [R4]                      @ store result in memory
 
   LDR   R4, =EXTI_PR                @ Clear (acknowledge) the interrupt
   MOV   R5, #(1<<0)                 @
   STR   R5, [R4]                    @
 
   @ Return from interrupt handler
-  POP  {R4,R5,PC}
+  POP  {R4-R6,PC}
 
 
   .section .data
@@ -213,5 +228,8 @@ blink_countdown:
 
 LED_cycle:
   .space 4
+
+result:
+  .space 4 @ 0 = not decided, 1 = lose, 2 = win
 
   .end
