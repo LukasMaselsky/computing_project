@@ -22,6 +22,15 @@
 Main:
   PUSH  {R4-R6,LR}
 
+  @ initialise result in memory
+  LDR R4, =result
+  LDR R5, =0
+  STR R5, [R4]
+
+  @ initialise blink period in memory
+  LDR R4, =blink_period
+  LDR R5, =BLINK_PERIOD
+  STR R5, [R4]
 
   @
   @ Prepare GPIO Port E Pin 9 for output (LED LD3)
@@ -148,12 +157,17 @@ SysTick_Handler:
 
 .LelseFire:                         @ else {
 
+
+
   LDR     R4, =GPIOE_ODR            @   Invert LD
   LDR     R5, [R4]                  @
 
-  @LDR      R6, =0x100              @   Mask to blink all LDEs
-  @EOR     R5, #(0b1<<(LD4_PIN))    @   GPIOE_ODR = GPIOE_ODR ^ (1<<LD4_PIN);
-  @EOR     R5, #(0b1<<(LD3_PIN))
+  LDR R4, =result
+  LDR R5, [R4]
+  CMP R5, #0 @ don't do anything
+  BNE .LwinOrLose
+  
+
   LDR     R6, =LED_cycle
   LDR     R7, [R6]
   LSL     R7, #1                    @    MASK to Turns off previous, switches on next
@@ -163,13 +177,28 @@ SysTick_Handler:
 
 .LContinueLEDCycle:
   STR     R7, [R6]
+  B .Lblink
+.LwinOrLose:
+  CMP R5, #1 @ lose
+  BEQ .Llose
+  @ otherwise win
+  LDR R7, =0xff00 @ all leds on
+  B .Lblink
+
+.Llose:
+  LDR R7, =0x200 @ blink MATCHLED (LED 3)
+
+.Lblink:
   BIC     R5, #0xFF00               @    clear all LED bits
   EOR     R5, R7                    @    Applies bit mask i.e. sets the bit from memory for next LED
+  
+  LDR     R4, =GPIOE_ODR 
   STR     R5, [R4]                  @    apply new state to LEDs to turn each one on/off
 
   LDR     R4, =blink_countdown      @   countdown = BLINK_PERIOD;
-  LDR     R5, =BLINK_PERIOD         @
-  STR     R5, [R4]                  @
+  LDR     R6, =blink_period
+  LDR     R7, [R6]                  @ load blink period from memory
+  STR     R7, [R4]                  @
 
 .LendIfDelay:                       @ }
 
@@ -191,8 +220,12 @@ EXTI0_IRQHandler:
 
   PUSH  {R4-R6,LR}
 
+  LDR R4, =result
+  LDR R5, [R4]
+  CMP R5, #0
+  BNE .LresetGame
  
-  LDR   R4, =LED_cycle              @ count = count + 1
+  LDR   R4, =LED_cycle              
   LDR   R5, [R4]                    @ LED that is currently on
   MOV   R6, #(0b1<<(MATCH_LED))     @ check if that LED is the same as the match point
   CMP   R5, R6
@@ -209,7 +242,18 @@ EXTI0_IRQHandler:
 .LendPlayerDecision:
   LDR R4, =result
   STR R5, [R4]                      @ store result in memory
+  B .LclearInt
 
+.LresetGame:
+  LDR R5, =0
+  STR R5, [R4] @ load 0 back to result
+  @ reset LED cycle to start at LED 3
+  LDR R4, =LED_cycle
+  LDR R5, =0x100
+  STR R5, [R4]
+
+
+.LclearInt:
   LDR   R4, =EXTI_PR                @ Clear (acknowledge) the interrupt
   MOV   R5, #(1<<0)                 @
   STR   R5, [R4]                    @
@@ -232,4 +276,10 @@ LED_cycle:
 result:
   .space 4 @ 0 = not decided, 1 = lose, 2 = win
 
+blink_period:
+  .space 4
+
   .end
+
+
+  
