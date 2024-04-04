@@ -15,12 +15,19 @@
   .include "./src/definitions.s"
 
   .equ    BLINK_PERIOD, 250
+  .equ    BLINK_DECREMENT, 25
+  .equ    BLINK_MINIMUM, 100
   .equ    MATCH_LED, LD3_PIN
 
   .section .text
 
 Main:
   PUSH  {R4-R6,LR}
+
+  @ initialise match led to LED3 in memory
+  LDR R4, =match_led
+  LDR R5, =MATCH_LED
+  STR R5, [R4]
 
   @ initialise result in memory
   LDR R4, =result
@@ -186,9 +193,24 @@ SysTick_Handler:
   B .Lblink
 
 .Llose:
-  LDR R7, =0x200 @ blink MATCHLED (LED 3)
+  LDR R4, =match_led
+  LDR R6, [R4]
+  MOV R7, #1
+  LSL R7, R6
+
 
 .Lblink:
+
+  CMP R5, #3
+  BNE .LdontShowMatch
+  @ show match
+  LDR R4, =match_led
+  LDR R6, [R4]
+  MOV R7, #1
+  LSL R7, R6
+
+.LdontShowMatch:
+
   BIC     R5, #0xFF00               @    clear all LED bits
   EOR     R5, R7                    @    Applies bit mask i.e. sets the bit from memory for next LED
   
@@ -218,7 +240,7 @@ SysTick_Handler:
   .type  EXTI0_IRQHandler, %function
 EXTI0_IRQHandler:
 
-  PUSH  {R4-R6,LR}
+  PUSH  {R4-R8,LR}
 
   LDR R4, =result
   LDR R5, [R4]
@@ -227,17 +249,39 @@ EXTI0_IRQHandler:
  
   LDR   R4, =LED_cycle              
   LDR   R5, [R4]                    @ LED that is currently on
-  MOV   R6, #(0b1<<(MATCH_LED))     @ check if that LED is the same as the match point
-  CMP   R5, R6
+
+  @ load match point
+  LDR R4, =match_led
+  LDR R6, [R4]                      @ check if that LED is the same as the match point
+  MOV R7, #1
+  LSL R7, R6
+
+  CMP   R5, R7
   BEQ .LplayerWon
   B .LplayerLost
 
 .LplayerWon:
   MOV R5, #2
+
+  @ decrement blink period
+  LDR R6, =blink_period
+  LDR R4, =BLINK_DECREMENT
+  LDR R7, =BLINK_MINIMUM
+  LDR R8, [R6] @ current blink period in memory
+  CMP R8, R7
+  BLE .LdontDec
+  SUB R8, R8, R4
+  STR R8, [R6]
+
+.LdontDec:
   B .LendPlayerDecision
 
 .LplayerLost: 
   MOV R5, #1
+  @ reset blink period to initial
+  LDR R4, =BLINK_PERIOD
+  LDR R6, =blink_period
+  STR R4, [R6]
 
 .LendPlayerDecision:
   LDR R4, =result
@@ -245,13 +289,36 @@ EXTI0_IRQHandler:
   B .LclearInt
 
 .LresetGame:
+  CMP R5, #3
+  BNE .LrandomiseLED
+
   LDR R5, =0
   STR R5, [R4] @ load 0 back to result
-  @ reset LED cycle to start at LED 3
+  @ reset LED cycle to start at new random LED
   LDR R4, =LED_cycle
-  LDR R5, =0x100
+  
+  LDR R5, =match_led
+  LDR R6, [R5]
+  MOV R7, #1
+  LSL R7, R6
+
+  STR R7, [R4]
+  B .LclearInt
+
+.LrandomiseLED:
+  @ randomise if win/lose state
+  @ randomised number, isolates last 3 bits and +8 for random LED
+  LDR R4, =blink_countdown
+  LDR R5, [R4]
+  AND R5, #0b111
+  ADD R5, R5, #8
+  LDR R4, =match_led
   STR R5, [R4]
 
+  @ store state 3 in memory
+  LDR R5, =3
+  LDR R4, =result
+  STR R5, [R4]  
 
 .LclearInt:
   LDR   R4, =EXTI_PR                @ Clear (acknowledge) the interrupt
@@ -259,7 +326,7 @@ EXTI0_IRQHandler:
   STR   R5, [R4]                    @
 
   @ Return from interrupt handler
-  POP  {R4-R6,PC}
+  POP  {R4-R8,PC}
 
 
   .section .data
@@ -274,9 +341,12 @@ LED_cycle:
   .space 4
 
 result:
-  .space 4 @ 0 = not decided, 1 = lose, 2 = win
+  .space 4 @ 0 = not decided, 1 = lose, 2 = win, 3 = show match led
 
 blink_period:
+  .space 4
+
+match_led:
   .space 4
 
   .end
