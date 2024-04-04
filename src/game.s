@@ -210,6 +210,8 @@ SysTick_Handler:
   LSL R7, R6
 
 .LdontShowMatch:
+  LDR     R4, =GPIOE_ODR            @   Invert LD
+  LDR     R5, [R4]                  @
 
   BIC     R5, #0xFF00               @    clear all LED bits
   EOR     R5, R7                    @    Applies bit mask i.e. sets the bit from memory for next LED
